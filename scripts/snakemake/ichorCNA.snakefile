@@ -1,41 +1,43 @@
-configfile: "config/config.yaml"
+from os.path import join as opj
 configfile: "config/samples.yaml"
+out_path = config["out_path"]
 
 rule all:
-  input: 
-  	expand("results/ichorCNA/{tumor}/{tumor}.cna.seg", tumor=config["samples"]),
-  	expand("results/readDepth/{samples}.bin{binSize}.wig", samples=config["samples"], binSize=str(config["binSize"]))
+    input:
+        expand(opj(out_path, "results/ichorCNA/{tumor}/{tumor}.cna.seg"), tumor=config["samples"]),
+        #expand(opj(out_path, "results/readDepth/{samples}.bin{binSize}.wig"), samples=config["samples"], binSize=str(config["binSize"]))
 
 rule read_counter:
 	input:
 		lambda wildcards: config["samples"][wildcards.samples]
 	output:
-		"results/readDepth/{samples}.bin{binSize}.wig"		
+		opj(out_path, "results/readDepth/{samples}.bin{binSize}.wig"),
 	params:
-		readCounter=config["readCounterScript"],
-		binSize=config["binSize"],
-		qual="20",
-		chrs=config["chrs"]
+        	readCounter=config["readCounterScript"],
+        	binSize=config["binSize"],
+        	qual="20",
+        	chrs=config["chrs"],
 	resources:
-		mem=4
+        	mem_mb=4000,
+                cpus=2,
+                disk_mb=4000,
+                runtime='30m'
+	conda:
+        	"envs/hmmcopy.yaml",
 	log:
-		"logs/readDepth/{samples}.bin{binSize}.log"
+		opj(out_path,"logs/readDepth/{samples}.bin{binSize}.log"),
 	shell:
-		"{params.readCounter} {input} -c {params.chrs} -w {params.binSize} -q {params.qual} > {output} 2> {log}"
+	    "{params.readCounter} {input} -c {params.chrs} -w {params.binSize} -q {params.qual} > {output} 2> {log}"
 
 rule ichorCNA:
 	input:
-		tum="results/readDepth/{tumor}.bin" + str(config["binSize"]) + ".wig",
+	    tum=opj(out_path, "results/readDepth/{tumor}.bin" + str(config["binSize"]) + ".wig"),
 		#norm=lambda wildcards: "results/readDepth/" + config["pairings"][wildcards.tumor] + ".bin" + str(config["binSize"]) + ".wig"
 	output:
-		#corrDepth="results/ichorCNA/{tumor}/{tumor}.correctedDepth.txt",
-		#param="results/ichorCNA/{tumor}/{tumor}.params.txt",
-		cna="results/ichorCNA/{tumor}/{tumor}.cna.seg",
-		#segTxt="results/ichorCNA/{tumor}/{tumor}.seg.txt",
-		#seg="results/ichorCNA/{tumor}/{tumor}.seg",
-		#rdata="results/ichorCNA/{tumor}/{tumor}.RData"
+		cna=opj(out_path, "results/ichorCNA/{tumor}/{tumor}.cna.seg"),
+
 	params:
-		outDir="results/ichorCNA/{tumor}/",
+	    outDir=opj(out_path,"results/ichorCNA/{tumor}/"),
 		rscript=config["ichorCNA_rscript"],
 		id="{tumor}",
 		ploidy=config["ichorCNA_ploidy"],
@@ -65,9 +67,14 @@ rule ichorCNA:
 		plotYlim=config["ichorCNA_plotYlim"],
 		libdir=config["ichorCNA_libdir"]
 	resources:
-		mem=4
+        	mem_mb=4000,
+                cpus=2,
+                disk_mb=4000,
+                runtime='30m'
+	conda:
+        	"envs/hmmcopy.yaml"
 	log:
-		"logs/ichorCNA/{tumor}.log"	
+		opj(out_path, "logs/ichorCNA/{tumor}.log")
 	shell:
 		"Rscript {params.rscript} --id {params.id} --libdir {params.libdir} --WIG {input.tum} --gcWig {params.gcwig} --mapWig {params.mapwig} --normalPanel {params.normalpanel} --ploidy \"{params.ploidy}\" --normal \"{params.normal}\" --maxCN {params.maxCN} --includeHOMD {params.includeHOMD} --chrs \"{params.chrs}\" --chrTrain \"{params.chrTrain}\" --genomeStyle {params.genomeStyle} --genomeBuild {params.genomeBuild} --estimateNormal {params.estimateNormal} --estimatePloidy {params.estimatePloidy} --estimateScPrevalence {params.estimateClonality} --scStates \"{params.scStates}\" --centromere {params.centromere} --exons.bed {params.exons} --txnE {params.txnE} --txnStrength {params.txnStrength} --minMapScore {params.minMapScore} --fracReadsInChrYForMale {params.fracReadsChrYMale} --maxFracGenomeSubclone {params.maxFracGenomeSubclone} --maxFracCNASubclone {params.maxFracCNASubclone} --plotFileType {params.plotFileType} --plotYLim \"{params.plotYlim}\" --outDir {params.outDir} > {log} 2> {log}"
 
